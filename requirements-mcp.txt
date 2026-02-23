@@ -1,0 +1,5 @@
+# MCP (Model Context Protocol) + MySQL
+fastmcp
+pymysql
+python-dotenv
+pyyaml

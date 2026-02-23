@@ -1,0 +1,189 @@
+# ══════════════════════════════════════════════════════════════
+# CATÁLOGO SEMÁNTICO DE BASE DE DATOS - EJEMPLO COMPLETO
+# ══════════════════════════════════════════════════════════════
+#
+# Este es un EJEMPLO de cómo se ve un catálogo bien enriquecido.
+# Cópialo como catalog.yaml y adáptalo a tu base de datos.
+#
+# El generador automático crea la estructura base:
+#   python -m mcp_database.generate_catalog
+#
+# Luego TÚ agregas el conocimiento de negocio que solo tú tienes.
+# ══════════════════════════════════════════════════════════════
+
+database:
+  name: "sistema_compras"
+  description: >
+    Sistema de gestión de compras y abastecimiento.
+    Maneja órdenes de compra, proveedores, contratos y recepciones.
+
+# ─── CONVENCIONES DE NOMENCLATURA ───
+# Esto ayuda a la IA a decodificar nombres abreviados
+
+naming_conventions:
+  table_prefixes:
+    dat_: "Datos transaccionales (documentos, movimientos)"
+    mae_: "Tablas maestras (catálogos, entidades principales)"
+    det_: "Detalle / líneas de un documento"
+    par_: "Parámetros de configuración del sistema"
+    log_: "Registros de auditoría / bitácora"
+  column_prefixes:
+    cod_: "Código identificador"
+    nom_: "Nombre descriptivo"
+    des_: "Descripción extendida"
+    fec_: "Fecha"
+    can_: "Cantidad"
+    pre_: "Precio unitario"
+    val_: "Valor numérico / monto"
+    est_: "Estado / estatus"
+    obs_: "Observaciones / notas"
+    tot_: "Total"
+    mon_: "Monto"
+    tip_: "Tipo / categoría"
+    num_: "Número"
+    usr_: "Usuario"
+    rut_: "RUT / identificación fiscal"
+
+# ─── GLOSARIO DE NEGOCIO ───
+# Mapea abreviaturas y jerga a su significado real.
+# CRÍTICO: Sin esto la IA no puede conectar "OC" con "dat_oc"
+
+glossary:
+  OC: "Orden de Compra"
+  PR: "Pedido de Reposición"
+  GD: "Guía de Despacho"
+  HES: "Hoja de Entrada de Servicio"
+  CC: "Centro de Costo"
+  linoc: "Línea de Orden de Compra (detalle)"
+  proveedor: "Entidad que suministra bienes o servicios"
+  contrato: "Acuerdo marco con un proveedor"
+  bodega: "Almacén / lugar de almacenamiento"
+  artículo: "Producto / material / bien"
+
+# ─── TABLAS CON CONTEXTO SEMÁNTICO ───
+# Cada tabla necesita: description, aliases, columns, relationships, calculations
+
+tables:
+
+  dat_oc:
+    description: "Órdenes de Compra - Cabecera. Cada registro es una OC completa."
+    aliases:
+      - "OC"
+      - "orden de compra"
+      - "orden"
+      - "compra"
+    columns:
+      oc_datoc: "[PK] Número de la Orden de Compra"
+      fec_datoc: "Fecha de emisión de la OC"
+      est_datoc: "Estado de la OC (1=Pendiente, 2=Aprobada, 3=Cerrada, 9=Anulada)"
+      cod_proveedor: "Código del proveedor (FK a mae_proveedor)"
+      usr_datoc: "Usuario que creó la OC"
+      obs_datoc: "Observaciones generales de la OC"
+    relationships:
+      - target: dat_linoc
+        type: one_to_many
+        join: "dat_oc.oc_datoc = dat_linoc.oc_linoc"
+        description: "Cada OC tiene múltiples líneas de detalle con los ítems comprados"
+      - target: mae_proveedor
+        type: many_to_one
+        join: "dat_oc.cod_proveedor = mae_proveedor.cod_proveedor"
+        description: "Proveedor al que se le emite la OC"
+    calculations:
+      total_oc: "SELECT SUM(can_linoc * pre_linoc) FROM dat_linoc WHERE oc_linoc = <numero_oc>"
+      total_con_iva: "SELECT SUM(can_linoc * pre_linoc * 1.19) FROM dat_linoc WHERE oc_linoc = <numero_oc>"
+      cantidad_lineas: "SELECT COUNT(*) FROM dat_linoc WHERE oc_linoc = <numero_oc>"
+
+  dat_linoc:
+    description: "Líneas de detalle de Órdenes de Compra. Cada registro es un ítem dentro de una OC."
+    aliases:
+      - "línea de OC"
+      - "detalle de OC"
+      - "ítem de OC"
+      - "línea de orden"
+    columns:
+      oc_linoc: "Número de OC a la que pertenece esta línea (FK a dat_oc)"
+      lin_linoc: "Número de línea dentro de la OC"
+      cod_linoc: "Código del artículo/material"
+      can_linoc: "Cantidad solicitada"
+      pre_linoc: "Precio unitario"
+      des_linoc: "Descripción del ítem"
+    relationships:
+      - target: dat_oc
+        type: many_to_one
+        join: "dat_linoc.oc_linoc = dat_oc.oc_datoc"
+        description: "OC a la que pertenece esta línea"
+      - target: mae_articulo
+        type: many_to_one
+        join: "dat_linoc.cod_linoc = mae_articulo.cod_articulo"
+        description: "Artículo/material que se está comprando"
+    calculations:
+      total_linea: "can_linoc * pre_linoc"
+      total_linea_iva: "can_linoc * pre_linoc * 1.19"
+
+  mae_proveedor:
+    description: "Maestro de Proveedores. Catálogo de empresas que suministran bienes/servicios."
+    aliases:
+      - "proveedor"
+      - "proveedores"
+      - "vendor"
+      - "supplier"
+    columns:
+      cod_proveedor: "[PK] Código único del proveedor"
+      nom_proveedor: "Nombre o razón social"
+      rut_proveedor: "RUT / identificación fiscal"
+      dir_proveedor: "Dirección"
+      tel_proveedor: "Teléfono"
+      est_proveedor: "Estado (A=Activo, I=Inactivo)"
+    relationships:
+      - target: dat_oc
+        type: one_to_many
+        join: "mae_proveedor.cod_proveedor = dat_oc.cod_proveedor"
+        description: "Órdenes de compra emitidas a este proveedor"
+
+  mae_articulo:
+    description: "Maestro de Artículos/Materiales. Catálogo de productos."
+    aliases:
+      - "artículo"
+      - "material"
+      - "producto"
+      - "ítem"
+    columns:
+      cod_articulo: "[PK] Código único del artículo"
+      nom_articulo: "Nombre del artículo"
+      des_articulo: "Descripción detallada"
+      uni_articulo: "Unidad de medida (UN, KG, MT, LT)"
+
+# ─── EJEMPLOS DE PREGUNTAS Y QUERIES ───
+# Estos son FEW-SHOT EXAMPLES: le enseñan a la IA patrones de tu negocio.
+# Mientras más ejemplos pongas, mejor responderá.
+
+examples:
+  - question: "¿Cuál es el total de la OC 58136?"
+    sql: "SELECT SUM(can_linoc * pre_linoc) as total FROM dat_linoc WHERE oc_linoc = 58136"
+    explanation: "El total de una OC es la suma de (cantidad * precio) de cada línea de detalle"
+
+  - question: "¿Cuántas líneas tiene la OC 58136?"
+    sql: "SELECT COUNT(*) as cantidad_lineas FROM dat_linoc WHERE oc_linoc = 58136"
+    explanation: "Contar registros en dat_linoc filtrados por número de OC"
+
+  - question: "¿Cuántas OC tiene el proveedor con RUT 76.XXX.XXX-X?"
+    sql: >
+      SELECT COUNT(*) as total_oc
+      FROM dat_oc o
+      JOIN mae_proveedor p ON o.cod_proveedor = p.cod_proveedor
+      WHERE p.rut_proveedor = '76XXXXXXX'
+    explanation: "Unir dat_oc con mae_proveedor para filtrar por RUT"
+
+  - question: "¿Cuáles son las 10 OC más recientes?"
+    sql: "SELECT oc_datoc, fec_datoc, est_datoc FROM dat_oc ORDER BY fec_datoc DESC LIMIT 10"
+    explanation: "Listar OC ordenadas por fecha descendente"
+
+  - question: "¿Cuál es el monto total de compras por proveedor?"
+    sql: >
+      SELECT p.nom_proveedor, SUM(l.can_linoc * l.pre_linoc) as total
+      FROM dat_linoc l
+      JOIN dat_oc o ON l.oc_linoc = o.oc_datoc
+      JOIN mae_proveedor p ON o.cod_proveedor = p.cod_proveedor
+      GROUP BY p.nom_proveedor
+      ORDER BY total DESC
+    explanation: "Sumar las líneas de cada OC agrupando por proveedor"
